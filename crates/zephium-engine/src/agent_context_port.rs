@@ -20,9 +20,10 @@ use zephium_agentic::{
     SemanticScreenshotNativeCompletion, SemanticScreenshotNativeRequest,
     MAX_PENDING_NATIVE_CONTEXT_TASKS, MAX_PENDING_SEMANTIC_SCREENSHOTS,
 };
+use zephium_agentic::{ContextJoin, ContextOperationKind};
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use zephium_agentic::{
-    ContextJoin, ContextNavigationReplacement, ContextNavigationTarget, ContextOperationKind,
+    ContextNavigationReplacement, ContextNavigationTarget,
     ContextRendererLoss,
 };
 #[cfg(target_os = "macos")]
@@ -54,6 +55,27 @@ mod work_resource;
 pub(crate) mod work_resource_failure_diagnostic;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub use work_resource::{work_browser_monotonic_deadline, work_browser_monotonic_now};
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+pub fn work_browser_monotonic_now() -> Option<zephium_agentic::AgentPolicyInstant> {
+    static WORK_CLOCK_ORIGIN: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    u64::try_from(
+        WORK_CLOCK_ORIGIN
+            .get_or_init(std::time::Instant::now)
+            .elapsed()
+            .as_millis(),
+    )
+    .ok()
+    .map(zephium_agentic::AgentPolicyInstant::from_millis)
+}
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+pub fn work_browser_monotonic_deadline(deadline: std::time::Instant) -> Option<zephium_agentic::AgentPolicyInstant> {
+    static WORK_CLOCK_ORIGIN: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    let origin = *WORK_CLOCK_ORIGIN.get_or_init(std::time::Instant::now);
+    let nanos = deadline.checked_duration_since(origin)?.as_nanos();
+    u64::try_from(nanos.div_ceil(1_000_000))
+        .ok()
+        .map(zephium_agentic::AgentPolicyInstant::from_millis)
+}
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub(crate) use work_resource::{
     WorkActionTask, WorkHistoryBackTask, WorkLifecycleTask, WorkNavigationTask,
@@ -1644,6 +1666,7 @@ impl EngineAgentBrowserPort {
 }
 
 impl AgentBrowserPort for EngineAgentBrowserPort {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     fn work_screenshot_public_candidate(
         &self,
         lease: &zephium_agentic::WorkBrowserExecutionLease,
@@ -1652,12 +1675,31 @@ impl AgentBrowserPort for EngineAgentBrowserPort {
         self.native_image_public_candidate(lease, context)
     }
 
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    fn work_screenshot_public_candidate(
+        &self,
+        _lease: &zephium_agentic::WorkBrowserExecutionLease,
+        _context: zephium_agentic::ContextJoin,
+    ) -> bool {
+        false
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     fn claim_work_screenshot_source(
         &self,
         lease: &zephium_agentic::WorkBrowserExecutionLease,
         image: &zephium_agentic::SemanticScreenshot,
     ) -> Option<Arc<dyn zephium_agentic::SemanticScreenshotSource>> {
         self.claim_native_image_source(lease, image)
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    fn claim_work_screenshot_source(
+        &self,
+        _lease: &zephium_agentic::WorkBrowserExecutionLease,
+        _image: &zephium_agentic::SemanticScreenshot,
+    ) -> Option<Arc<dyn zephium_agentic::SemanticScreenshotSource>> {
+        None
     }
 
     #[cfg(all(
