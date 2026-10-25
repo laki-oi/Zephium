@@ -22,10 +22,7 @@ use zephium_agentic::{
 };
 use zephium_agentic::{ContextJoin, ContextOperationKind};
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-use zephium_agentic::{
-    ContextNavigationReplacement, ContextNavigationTarget,
-    ContextRendererLoss,
-};
+use zephium_agentic::{ContextNavigationReplacement, ContextNavigationTarget, ContextRendererLoss};
 #[cfg(target_os = "macos")]
 use zephium_agentic::{SemanticScreenshotNativeCapture, SemanticScreenshotNativeFailure};
 
@@ -68,7 +65,9 @@ pub fn work_browser_monotonic_now() -> Option<zephium_agentic::AgentPolicyInstan
     .map(zephium_agentic::AgentPolicyInstant::from_millis)
 }
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-pub fn work_browser_monotonic_deadline(deadline: std::time::Instant) -> Option<zephium_agentic::AgentPolicyInstant> {
+pub fn work_browser_monotonic_deadline(
+    deadline: std::time::Instant,
+) -> Option<zephium_agentic::AgentPolicyInstant> {
     static WORK_CLOCK_ORIGIN: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
     let origin = *WORK_CLOCK_ORIGIN.get_or_init(std::time::Instant::now);
     let nanos = deadline.checked_duration_since(origin)?.as_nanos();
